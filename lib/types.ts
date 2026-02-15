@@ -17,3 +17,8 @@ export interface AuthContextValue {
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
 }
+
+export interface MeResponse {
+  uid: string;
+  createdAt: string;
+}
