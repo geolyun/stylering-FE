@@ -16,10 +16,16 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 
 export class ApiError extends Error {
   status: number;
+  path: string;
+  method: RequestMethod;
+  details: string;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, path: string, method: RequestMethod) {
     super(message);
     this.status = status;
+    this.path = path;
+    this.method = method;
+    this.details = message;
   }
 }
 
@@ -27,12 +33,13 @@ export async function apiFetch<T>(
   path: string,
   options: ApiRequestOptions = {},
 ): Promise<T> {
+  const method = options.method ?? "GET";
   const token = auth?.currentUser ? await auth.currentUser.getIdToken() : null;
   const url = `${API_BASE_URL}${path}`;
   const isJsonBody = options.body !== undefined;
 
   const response = await fetch(url, {
-    method: options.method ?? "GET",
+    method,
     headers: {
       ...(isJsonBody ? { "Content-Type": "application/json" } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -46,17 +53,18 @@ export async function apiFetch<T>(
     if (auth) {
       await signOut(auth);
     }
-    throw new ApiError(401, "Unauthorized");
+    throw new ApiError(401, "Unauthorized", path, method);
   }
 
   if (!response.ok) {
     const fallback = `Request failed with status ${response.status}`;
     const text = await response.text();
-    throw new ApiError(response.status, text || fallback);
+    throw new ApiError(response.status, text || fallback, path, method);
   }
   const contentType = response.headers.get("content-type") ?? "";
   if (!contentType.includes("application/json")) {
-    return undefined as T;
+    const text = await response.text();
+    return text as T;
   }
 
   return (await response.json()) as T;

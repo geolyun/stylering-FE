@@ -4,7 +4,10 @@ export interface ChatMessage {
   id: string;
   role: ChatRole;
   content: string;
-  recommendation?: ChatRecommendation;
+  nextAction?: ChatNextAction;
+  sessionStatus?: string;
+  recommendations?: ChatRecommendation[];
+  cta?: ChatCta;
 }
 
 export interface AuthUser {
@@ -30,19 +33,44 @@ export interface ChatRecommendation {
   reason: string;
 }
 
+export type ChatNextAction = "ASK" | "SUGGEST_STOP" | "RECOMMEND";
+
+export interface ChatCtaItem {
+  label?: string;
+  action?: string;
+}
+
+export interface ChatCta {
+  primary?: ChatCtaItem;
+  secondary?: ChatCtaItem;
+}
+
 export interface CreateChatSessionResponse {
-  sessionId: string;
+  sessionId: string | number;
 }
 
 export interface SendChatMessageRequest {
-  sessionId: string;
+  sessionId: string | number;
   message: string;
 }
 
 export interface SendChatMessageResponse {
-  id?: string;
+  id?: string | number;
+  userMessageId?: number;
+  assistantMessageId?: number;
+  sessionId?: string | number;
   content?: string;
   message?: string;
   text?: string;
+  assistantContent?: string;
   recommendation?: ChatRecommendation | null;
+}
+
+export interface ChatApiResponse {
+  assistantContent: string;
+  nextAction: ChatNextAction;
+  sessionStatus: string;
+  recommendations?: ChatRecommendation[];
+  cta?: ChatCta;
+  assistantMessageId?: number | string;
 }
