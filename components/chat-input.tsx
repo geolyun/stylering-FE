@@ -1,10 +1,12 @@
 import type { KeyboardEvent } from "react";
+import type { RefObject } from "react";
 
 interface ChatInputProps {
   value: string;
   onChange: (value: string) => void;
   onSend: () => void;
   disabled?: boolean;
+  textareaRef?: RefObject<HTMLTextAreaElement | null>;
 }
 
 export function ChatInput({
@@ -12,6 +14,7 @@ export function ChatInput({
   onChange,
   onSend,
   disabled = false,
+  textareaRef,
 }: ChatInputProps) {
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {
@@ -24,6 +27,7 @@ export function ChatInput({
     <div className="rounded-[20px] border border-gray-300 bg-white p-3">
       <div className="flex items-end gap-2">
         <textarea
+          ref={textareaRef}
           aria-label="Chat message input"
           className="min-h-20 flex-1 resize-none rounded-2xl border border-gray-200 p-3 text-sm text-gray-900 outline-none transition hover:border-gray-300 focus:border-gray-400"
           placeholder="메시지를 입력하세요"

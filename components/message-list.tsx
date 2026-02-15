@@ -8,9 +8,16 @@ import type { ChatMessage as ChatMessageType } from "@/lib/types";
 interface MessageListProps {
   messages: ChatMessageType[];
   isTyping: boolean;
+  onStopAndRecommend: () => void;
+  onContinue: () => void;
 }
 
-export function MessageList({ messages, isTyping }: MessageListProps) {
+export function MessageList({
+  messages,
+  isTyping,
+  onStopAndRecommend,
+  onContinue,
+}: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -30,7 +37,12 @@ export function MessageList({ messages, isTyping }: MessageListProps) {
     >
       <ul className="space-y-3">
         {messages.map((message) => (
-          <ChatMessage key={message.id} message={message} />
+          <ChatMessage
+            key={message.id}
+            message={message}
+            onStopAndRecommend={onStopAndRecommend}
+            onContinue={onContinue}
+          />
         ))}
         {isTyping ? <TypingIndicator /> : null}
       </ul>
