@@ -1,10 +1,10 @@
-import { ChatLayout } from "@/components/chat-layout";
 import { ProtectedRoute } from "@/components/protected-route";
+import { ProfileView } from "@/components/profile-view";
 
-export default function ChatPage() {
+export default function ProfilePage() {
   return (
     <ProtectedRoute>
-      <ChatLayout />
+      <ProfileView />
     </ProtectedRoute>
   );
 }

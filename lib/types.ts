@@ -5,3 +5,15 @@ export interface ChatMessage {
   role: ChatRole;
   content: string;
 }
+
+export interface AuthUser {
+  uid: string;
+  email: string | null;
+}
+
+export interface AuthContextValue {
+  user: AuthUser | null;
+  loading: boolean;
+  loginWithGoogle: () => Promise<void>;
+  logout: () => Promise<void>;
+}
