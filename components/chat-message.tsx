@@ -1,5 +1,4 @@
 import type { ChatMessage as ChatMessageType, ChatSessionStatus } from "@/lib/types";
-import { RecommendationCard } from "@/components/recommendation-card";
 
 interface ChatMessageProps {
   message: ChatMessageType;
@@ -35,14 +34,6 @@ export function ChatMessage({
         >
           <p className="whitespace-pre-wrap break-words leading-6">{message.content}</p>
         </article>
-        {!isUser && sessionStatus === "RECOMMENDED" && message.recommendations?.length
-          ? message.recommendations.map((recommendation, index) => (
-              <RecommendationCard
-                key={`${message.id}-recommendation-${index}`}
-                recommendation={recommendation}
-              />
-            ))
-          : null}
         {shouldShowCta ? (
           <div className="mt-2 flex gap-2">
             <button

@@ -39,3 +39,19 @@ body {
 *::-webkit-scrollbar-thumb:hover {
   background: #9ca3af;
 }
+
+@keyframes recommendation-fade {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-recommendation-fade {
+  opacity: 0;
+  animation: recommendation-fade 360ms ease-out forwards;
+}
