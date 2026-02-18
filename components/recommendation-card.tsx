@@ -11,7 +11,11 @@ export function RecommendationCard({
         <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-gray-700">
           {recommendation.category}
         </span>
-        <h4 className="text-sm font-semibold">{recommendation.title}</h4>
+        {recommendation.name ? (
+          <h4 className="text-sm font-semibold">{recommendation.name}</h4>
+        ) : (
+          <h4 className="text-sm font-semibold">{String(recommendation.itemId)}</h4>
+        )}
       </div>
       <p className="text-xs text-gray-600">{recommendation.reason}</p>
     </section>

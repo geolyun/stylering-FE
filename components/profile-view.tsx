@@ -52,6 +52,17 @@ export function ProfileView() {
     return date.toLocaleString();
   }, [profile]);
 
+  const lastLoginAtText = useMemo(() => {
+    if (!profile?.lastLoginAt) {
+      return "-";
+    }
+    const date = new Date(profile.lastLoginAt);
+    if (Number.isNaN(date.getTime())) {
+      return profile.lastLoginAt;
+    }
+    return date.toLocaleString();
+  }, [profile]);
+
   return (
     <main className="mx-auto flex h-screen w-full max-w-3xl bg-white p-3 text-sm text-gray-900">
       <section className="flex min-w-0 flex-1 flex-col gap-3">
@@ -70,12 +81,16 @@ export function ProfileView() {
           {!loading && !error && profile ? (
             <dl className="space-y-2 text-sm">
               <div className="flex items-center justify-between gap-2 border-b border-gray-100 pb-2">
-                <dt className="text-gray-500">uid</dt>
-                <dd className="break-all font-medium text-gray-900">{profile.uid}</dd>
+                <dt className="text-gray-500">firebaseUid</dt>
+                <dd className="break-all font-medium text-gray-900">{profile.firebaseUid}</dd>
               </div>
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center justify-between gap-2 border-b border-gray-100 pb-2">
                 <dt className="text-gray-500">createdAt</dt>
                 <dd className="font-medium text-gray-900">{createdAtText}</dd>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <dt className="text-gray-500">lastLoginAt</dt>
+                <dd className="font-medium text-gray-900">{lastLoginAtText}</dd>
               </div>
             </dl>
           ) : null}

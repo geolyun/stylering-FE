@@ -3,11 +3,12 @@
 import { useEffect, useRef } from "react";
 import { ChatMessage } from "@/components/chat-message";
 import { TypingIndicator } from "@/components/typing-indicator";
-import type { ChatMessage as ChatMessageType } from "@/lib/types";
+import type { ChatMessage as ChatMessageType, ChatSessionStatus } from "@/lib/types";
 
 interface MessageListProps {
   messages: ChatMessageType[];
   isTyping: boolean;
+  sessionStatus: ChatSessionStatus;
   onStopAndRecommend: () => void;
   onContinue: () => void;
 }
@@ -15,6 +16,7 @@ interface MessageListProps {
 export function MessageList({
   messages,
   isTyping,
+  sessionStatus,
   onStopAndRecommend,
   onContinue,
 }: MessageListProps) {
@@ -40,6 +42,7 @@ export function MessageList({
           <ChatMessage
             key={message.id}
             message={message}
+            sessionStatus={sessionStatus}
             onStopAndRecommend={onStopAndRecommend}
             onContinue={onContinue}
           />

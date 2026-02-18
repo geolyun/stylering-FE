@@ -14,6 +14,13 @@ interface ApiRequestOptions {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 
+function getBaseUrl(): string {
+  if (!API_BASE_URL) {
+    throw new Error("NEXT_PUBLIC_API_BASE_URL environment variable is not set.");
+  }
+  return API_BASE_URL;
+}
+
 export class ApiError extends Error {
   status: number;
   path: string;
@@ -35,13 +42,14 @@ export async function apiFetch<T>(
 ): Promise<T> {
   const method = options.method ?? "GET";
   const token = auth?.currentUser ? await auth.currentUser.getIdToken() : null;
-  const url = `${API_BASE_URL}${path}`;
+  const url = `${getBaseUrl()}${path}`;
   const isJsonBody = options.body !== undefined;
+  const isJsonMethod = method === "POST" || method === "PUT" || method === "PATCH";
 
   const response = await fetch(url, {
     method,
     headers: {
-      ...(isJsonBody ? { "Content-Type": "application/json" } : {}),
+      ...(isJsonBody || isJsonMethod ? { "Content-Type": "application/json" } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },
