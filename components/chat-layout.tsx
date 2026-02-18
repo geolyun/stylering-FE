@@ -5,6 +5,7 @@ import { ChatInput } from "@/components/chat-input";
 import { MessageList } from "@/components/message-list";
 import { Sidebar } from "@/components/sidebar";
 import { AuthHeader } from "@/components/auth-header";
+import { RecommendationResults } from "@/components/recommendation-results";
 import { useChat } from "@/lib/use-chat";
 
 export function ChatLayout() {
@@ -29,7 +30,12 @@ export function ChatLayout() {
   const isRecommended = sessionStatus === "RECOMMENDED";
   const isStopped = sessionStatus === "STOPPED";
   const inputDisabled = isTyping || isSessionLoading || isRecommended || isStopped;
-  const placeholder = isRecommended ? "새 상담을 시작해주세요." : "메시지를 입력하세요.";
+  const placeholder = isRecommended ? "새 상담을 시작하세요" : "메시지를 입력하세요";
+  const latestRecommendedMessage = [...messages]
+    .reverse()
+    .find((message) => message.role === "assistant" && (message.recommendations?.length ?? 0) > 0);
+  const recommendationSummary = latestRecommendedMessage?.content ?? "";
+  const recommendations = latestRecommendedMessage?.recommendations ?? [];
 
   const handleContinue = () => {
     inputRef.current?.focus();
@@ -41,7 +47,7 @@ export function ChatLayout() {
       <section className="flex min-w-0 flex-1 flex-col gap-3">
         <AuthHeader title="StyleRing Chat" />
         {isRecommended ? (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between gap-2">
             <div className="inline-flex w-fit items-center rounded-full border border-gray-300 bg-gray-50 px-3 py-1 text-xs font-medium text-gray-700">
               스타일 분석 완료
             </div>
@@ -50,7 +56,7 @@ export function ChatLayout() {
               onClick={() => void resetChat()}
               className="rounded-full border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700 transition hover:bg-gray-50"
             >
-              새 상담 시작
+              다시 인터뷰 시작
             </button>
           </div>
         ) : null}
@@ -69,7 +75,7 @@ export function ChatLayout() {
                 className="rounded-lg border border-gray-300 bg-gray-50 px-2 py-1 text-xs text-gray-700 transition hover:bg-gray-100"
                 disabled={isSessionLoading}
               >
-                재시도
+                다시 시도
               </button>
             </div>
             {showDebug && debugInfo ? (
@@ -92,6 +98,13 @@ export function ChatLayout() {
           onStopAndRecommend={() => void stopAndRecommend()}
           onContinue={handleContinue}
         />
+        {isRecommended && recommendations.length > 0 ? (
+          <RecommendationResults
+            summary={recommendationSummary}
+            recommendations={recommendations}
+            onRestartInterview={() => void resetChat()}
+          />
+        ) : null}
         <ChatInput
           textareaRef={inputRef}
           value={input}
