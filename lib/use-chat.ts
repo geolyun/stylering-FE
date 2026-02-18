@@ -3,211 +3,94 @@
 import { useCallback, useEffect, useState } from "react";
 import { ApiError, apiFetch } from "@/lib/api";
 import type {
-  ChatApiResponse,
-  ChatCta,
   ChatMessage,
   ChatNextAction,
-  ChatRecommendation,
+  ChatSessionStatus,
   CreateChatSessionResponse,
+  SendChatMessageResponse,
 } from "@/lib/types";
 
-const initialMessages: ChatMessage[] = [
-  {
-    id: "welcome",
-    role: "assistant",
-    content: "Hello. How can I help you today?",
-  },
-];
+/* ─── Constants ─── */
 
-function pickString(value: unknown) {
-  return typeof value === "string" && value.trim() ? value : "";
+const WELCOME_MESSAGE: ChatMessage = {
+  id: "welcome",
+  role: "assistant",
+  content: "안녕하세요! 어떤 스타일을 찾고 계신가요?",
+};
+
+const STOP_COMMAND = "추천해줘";
+const RATE_LIMIT_MSG = "요청이 너무 많습니다. 잠시 후 다시 시도해주세요.";
+
+/* ─── Helpers ─── */
+
+function generateId(prefix: string): string {
+  return `${prefix}-${crypto.randomUUID()}`;
 }
 
-function resolveSessionId(payload: unknown) {
-  if (!payload || typeof payload !== "object") {
-    return null;
-  }
-  const value = payload as Record<string, unknown>;
-  if (typeof value.sessionId === "string" || typeof value.sessionId === "number") {
-    return value.sessionId;
-  }
-  const data = value.data;
-  if (data && typeof data === "object") {
-    const nested = data as Record<string, unknown>;
-    if (typeof nested.sessionId === "string" || typeof nested.sessionId === "number") {
-      return nested.sessionId;
-    }
-  }
-  return null;
+const VALID_SESSION_STATUSES = new Set<ChatSessionStatus>([
+  "INTERVIEWING",
+  "READY_TO_RECOMMEND",
+  "STOPPED",
+  "RECOMMENDED",
+]);
+
+const VALID_NEXT_ACTIONS = new Set<ChatNextAction>(["ASK", "SUGGEST_STOP", "RECOMMEND"]);
+
+function toSessionStatus(value: string): ChatSessionStatus {
+  return VALID_SESSION_STATUSES.has(value as ChatSessionStatus)
+    ? (value as ChatSessionStatus)
+    : "INTERVIEWING";
 }
 
-function normalizeRecommendations(payload: unknown): ChatRecommendation[] | undefined {
-  if (!payload || typeof payload !== "object") {
-    return undefined;
-  }
-  const root = payload as Record<string, unknown>;
-  const candidates = [root.recommendations, root.recommendation, (root.data as Record<string, unknown> | undefined)?.recommendations];
-
-  for (const candidate of candidates) {
-    if (Array.isArray(candidate)) {
-      const parsed = candidate
-        .map((item) => {
-          if (!item || typeof item !== "object") {
-            return null;
-          }
-          const rec = item as Record<string, unknown>;
-          if (
-            typeof rec.title === "string" &&
-            typeof rec.category === "string" &&
-            typeof rec.reason === "string"
-          ) {
-            return {
-              title: rec.title,
-              category: rec.category,
-              reason: rec.reason,
-            };
-          }
-          return null;
-        })
-        .filter((item): item is ChatRecommendation => Boolean(item));
-      if (parsed.length > 0) {
-        return parsed;
-      }
-    }
-  }
-
-  const single = root.recommendation;
-  if (single && typeof single === "object") {
-    const rec = single as Record<string, unknown>;
-    if (
-      typeof rec.title === "string" &&
-      typeof rec.category === "string" &&
-      typeof rec.reason === "string"
-    ) {
-      return [
-        {
-          title: rec.title,
-          category: rec.category,
-          reason: rec.reason,
-        },
-      ];
-    }
-  }
-  return undefined;
+function toNextAction(value: string): ChatNextAction {
+  return VALID_NEXT_ACTIONS.has(value as ChatNextAction)
+    ? (value as ChatNextAction)
+    : "ASK";
 }
 
-function normalizeCta(payload: unknown): ChatCta | undefined {
-  if (!payload || typeof payload !== "object") {
-    return undefined;
+function deriveSessionStatus(
+  status: ChatSessionStatus,
+  nextAction: ChatNextAction,
+): ChatSessionStatus {
+  if (status === "INTERVIEWING" && nextAction === "SUGGEST_STOP") {
+    return "READY_TO_RECOMMEND";
   }
-  const root = payload as Record<string, unknown>;
-  const raw = root.cta ?? (root.data && typeof root.data === "object" ? (root.data as Record<string, unknown>).cta : undefined);
-  if (!raw || typeof raw !== "object") {
-    return undefined;
+  return status;
+}
+
+/* ─── Error Handler ─── */
+
+interface ErrorState {
+  error: string | null;
+  rateLimitMessage: string | null;
+  debugInfo: string | null;
+}
+
+function handleApiError(err: unknown, context: string): ErrorState {
+  if (err instanceof ApiError && err.status === 429) {
+    return { error: null, rateLimitMessage: RATE_LIMIT_MSG, debugInfo: null };
   }
-  const cta = raw as Record<string, unknown>;
-  const toItem = (value: unknown) => {
-    if (typeof value === "string") {
-      return { label: value, action: value };
-    }
-    if (value && typeof value === "object") {
-      const item = value as Record<string, unknown>;
-      return {
-        label: pickString(item.label) || undefined,
-        action: pickString(item.action) || undefined,
-      };
-    }
-    return undefined;
-  };
+  if (err instanceof ApiError) {
+    return {
+      error: `${context} (${err.status})`,
+      rateLimitMessage: null,
+      debugInfo: `status=${err.status} | method=${err.method} | path=${err.path} | message=${err.details || err.message}`,
+    };
+  }
   return {
-    primary: toItem(cta.primary),
-    secondary: toItem(cta.secondary),
+    error: err instanceof Error ? err.message : context,
+    rateLimitMessage: null,
+    debugInfo: null,
   };
 }
 
-function normalizeNextAction(payload: unknown): ChatNextAction | undefined {
-  if (!payload || typeof payload !== "object") {
-    return undefined;
-  }
-  const root = payload as Record<string, unknown>;
-  const candidate =
-    pickString(root.nextAction) ||
-    (root.data && typeof root.data === "object"
-      ? pickString((root.data as Record<string, unknown>).nextAction)
-      : "");
-  if (candidate === "ASK" || candidate === "SUGGEST_STOP" || candidate === "RECOMMEND") {
-    return candidate;
-  }
-  return undefined;
-}
-
-function normalizeAssistantContent(payload: unknown) {
-  if (typeof payload === "string") {
-    return payload;
-  }
-  if (!payload || typeof payload !== "object") {
-    return "";
-  }
-  const root = payload as Record<string, unknown>;
-  const direct =
-    pickString(root.assistantContent) ||
-    pickString(root.content) ||
-    pickString(root.message) ||
-    pickString(root.text);
-  if (direct) {
-    return direct;
-  }
-  const data = root.data;
-  if (!data || typeof data !== "object") {
-    return "";
-  }
-  const nested = data as Record<string, unknown>;
-  return (
-    pickString(nested.assistantContent) ||
-    pickString(nested.content) ||
-    pickString(nested.message) ||
-    pickString(nested.text)
-  );
-}
-
-function normalizeApiResponse(payload: unknown): ChatApiResponse {
-  const content = normalizeAssistantContent(payload) || "Empty response message.";
-  const nextAction = normalizeNextAction(payload) ?? "ASK";
-  const recommendations = normalizeRecommendations(payload);
-  const cta = normalizeCta(payload);
-  let sessionStatus = "ACTIVE";
-  if (payload && typeof payload === "object") {
-    const root = payload as Record<string, unknown>;
-    sessionStatus =
-      pickString(root.sessionStatus) ||
-      (root.data && typeof root.data === "object"
-        ? pickString((root.data as Record<string, unknown>).sessionStatus)
-        : "") ||
-      "ACTIVE";
-  }
-
-  let assistantMessageId: number | string | undefined;
-  if (payload && typeof payload === "object") {
-    const root = payload as Record<string, unknown>;
-    if (typeof root.assistantMessageId === "number" || typeof root.assistantMessageId === "string") {
-      assistantMessageId = root.assistantMessageId;
-    }
-  }
-
-  return {
-    assistantContent: content,
-    nextAction,
-    sessionStatus,
-    recommendations,
-    cta,
-    assistantMessageId,
-  };
-}
+/* ─── Hook ─── */
 
 export function useChat() {
   const showDebug = process.env.NEXT_PUBLIC_CHAT_DEBUG === "true";
-  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
-  const [sessionId, setSessionId] = useState<string | number | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MESSAGE]);
+  const [sessionId, setSessionId] = useState<number | null>(null);
+  const [sessionStatus, setSessionStatus] = useState<ChatSessionStatus>("INTERVIEWING");
   const [input, setInput] = useState("");
   const [isSessionLoading, setIsSessionLoading] = useState(true);
   const [isTyping, setIsTyping] = useState(false);
@@ -215,113 +98,119 @@ export function useChat() {
   const [rateLimitMessage, setRateLimitMessage] = useState<string | null>(null);
   const [debugInfo, setDebugInfo] = useState<string | null>(null);
 
+  const applyError = useCallback((errState: ErrorState) => {
+    setError(errState.error);
+    setRateLimitMessage(errState.rateLimitMessage);
+    setDebugInfo(errState.debugInfo);
+  }, []);
+
+  const clearErrors = useCallback(() => {
+    setError(null);
+    setRateLimitMessage(null);
+    setDebugInfo(null);
+  }, []);
+
   const createSession = useCallback(async () => {
     try {
       setIsSessionLoading(true);
-      setError(null);
-      setDebugInfo(null);
+      clearErrors();
       const response = await apiFetch<CreateChatSessionResponse>("/api/v1/chat/sessions", {
         method: "POST",
       });
-      const nextSessionId = resolveSessionId(response);
-      if (!nextSessionId) {
+      if (response.sessionId == null) {
         throw new Error("sessionId is missing in API response.");
       }
-      setSessionId(nextSessionId);
-      return nextSessionId;
+      setSessionId(response.sessionId);
+      setSessionStatus("INTERVIEWING");
+      return response.sessionId;
     } catch (err) {
-      if (err instanceof ApiError && err.status === 429) {
-        setRateLimitMessage("Too many requests. Please try again in a moment.");
-      } else if (err instanceof ApiError) {
-        setError(`Session request failed (${err.status}).`);
-        setDebugInfo(
-          `status=${err.status} | method=${err.method} | path=${err.path} | message=${err.details || err.message}`,
-        );
-      } else {
-        setError(err instanceof Error ? err.message : "Session request failed.");
-      }
+      applyError(handleApiError(err, "세션 생성 실패"));
       return null;
     } finally {
       setIsSessionLoading(false);
     }
-  }, []);
+  }, [applyError, clearErrors]);
 
   useEffect(() => {
     void createSession();
   }, [createSession]);
 
   const sendMessage = useCallback(
-    async (text: string) => {
+    async (text: string, options?: { stopAndRecommend?: boolean }) => {
       const message = text.trim();
-      if (!message || isTyping || isSessionLoading) {
+      if (!message || isTyping || isSessionLoading || sessionStatus === "RECOMMENDED") {
         return;
       }
 
       let activeSessionId = sessionId;
       if (!activeSessionId) {
         activeSessionId = await createSession();
-        if (!activeSessionId) {
-          return;
-        }
+        if (!activeSessionId) return;
       }
 
       setMessages((prev) => [
         ...prev,
-        {
-          id: `u-${Date.now()}`,
-          role: "user",
-          content: message,
-        },
+        { id: generateId("u"), role: "user", content: message },
       ]);
       setInput("");
       setIsTyping(true);
-      setError(null);
-      setRateLimitMessage(null);
-      setDebugInfo(null);
+      clearErrors();
+      if (options?.stopAndRecommend) {
+        setSessionStatus("STOPPED");
+      }
 
       try {
-        const raw = await apiFetch<unknown>("/api/v1/chat/messages", {
+        const res = await apiFetch<SendChatMessageResponse>("/api/v1/chat/messages", {
           method: "POST",
-          body: {
-            sessionId: activeSessionId,
-            message,
-            content: message,
-          },
+          body: { sessionId: activeSessionId, message },
         });
-        const parsed = normalizeApiResponse(raw);
+
+        const nextAction = toNextAction(res.nextAction);
+        const rawStatus = toSessionStatus(res.sessionStatus);
+        const finalStatus = deriveSessionStatus(rawStatus, nextAction);
+
+        setSessionStatus(finalStatus);
         setMessages((prev) => [
           ...prev,
           {
-            id: parsed.assistantMessageId ? String(parsed.assistantMessageId) : `a-${Date.now()}`,
+            id: res.assistantMessageId ? String(res.assistantMessageId) : generateId("a"),
             role: "assistant",
-            content: parsed.assistantContent,
-            nextAction: parsed.nextAction,
-            sessionStatus: parsed.sessionStatus,
-            recommendations: parsed.recommendations,
-            cta: parsed.cta,
+            content: res.assistantContent,
+            nextAction,
+            sessionStatus: finalStatus,
+            recommendations: res.recommendations?.length ? res.recommendations : undefined,
+            cta: res.cta ?? undefined,
           },
         ]);
       } catch (err) {
-        if (err instanceof ApiError && err.status === 429) {
-          setRateLimitMessage("Too many requests. Please try again in a moment.");
-        } else if (err instanceof ApiError) {
-          setError(`Message request failed (${err.status}).`);
-          setDebugInfo(
-            `status=${err.status} | method=${err.method} | path=${err.path} | message=${err.details || err.message}`,
-          );
-        } else {
-          setError("Message request failed.");
+        applyError(handleApiError(err, "메시지 전송 실패"));
+        if (options?.stopAndRecommend) {
+          setSessionStatus("READY_TO_RECOMMEND");
         }
       } finally {
         setIsTyping(false);
       }
     },
-    [createSession, isSessionLoading, isTyping, sessionId],
+    [applyError, clearErrors, createSession, isSessionLoading, isTyping, sessionId, sessionStatus],
   );
+
+  const stopAndRecommend = useCallback(async () => {
+    await sendMessage(STOP_COMMAND, { stopAndRecommend: true });
+  }, [sendMessage]);
+
+  const resetChat = useCallback(async () => {
+    setMessages([WELCOME_MESSAGE]);
+    setSessionId(null);
+    setSessionStatus("INTERVIEWING");
+    setInput("");
+    clearErrors();
+    await createSession();
+  }, [clearErrors, createSession]);
 
   return {
     showDebug,
     messages,
+    sessionStatus,
     input,
     setInput,
     isSessionLoading,
@@ -331,5 +220,7 @@ export function useChat() {
     debugInfo,
     createSession,
     sendMessage,
+    stopAndRecommend,
+    resetChat,
   };
 }

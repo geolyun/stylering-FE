@@ -1,21 +1,26 @@
-import type { ChatMessage as ChatMessageType } from "@/lib/types";
+import type { ChatMessage as ChatMessageType, ChatSessionStatus } from "@/lib/types";
 import { RecommendationCard } from "@/components/recommendation-card";
 
 interface ChatMessageProps {
   message: ChatMessageType;
+  sessionStatus: ChatSessionStatus;
   onStopAndRecommend: () => void;
   onContinue: () => void;
 }
 
 export function ChatMessage({
   message,
+  sessionStatus,
   onStopAndRecommend,
   onContinue,
 }: ChatMessageProps) {
   const isUser = message.role === "user";
-  const shouldShowCta = !isUser && message.nextAction === "SUGGEST_STOP";
-  const primaryLabel = message.cta?.primary?.label ?? "STOP_AND_RECOMMEND";
-  const secondaryLabel = message.cta?.secondary?.label ?? "CONTINUE";
+  const shouldShowCta =
+    !isUser &&
+    sessionStatus === "READY_TO_RECOMMEND" &&
+    message.nextAction === "SUGGEST_STOP";
+  const primaryLabel = message.cta?.primary?.label ?? "추천 받기";
+  const secondaryLabel = message.cta?.secondary?.label ?? "계속 대화하기";
 
   return (
     <li className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
@@ -30,7 +35,7 @@ export function ChatMessage({
         >
           <p className="whitespace-pre-wrap break-words leading-6">{message.content}</p>
         </article>
-        {!isUser && message.recommendations?.length
+        {!isUser && sessionStatus === "RECOMMENDED" && message.recommendations?.length
           ? message.recommendations.map((recommendation, index) => (
               <RecommendationCard
                 key={`${message.id}-recommendation-${index}`}
